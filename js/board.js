@@ -74,6 +74,7 @@ const Board = (() => {
     renderList();
     const board = Store.getBoard(id);
     document.getElementById('boardTitle').textContent = board ? board.name : 'No Board';
+    TaskDetail.hide();
     Task.renderBoard();
     Search.updateAssigneeFilter();
     document.getElementById('boardContainer').scrollLeft = 0;
@@ -119,6 +120,7 @@ const Board = (() => {
     renderList();
     const board = Store.getBoard(Store.getCurrentBoardId());
     document.getElementById('boardTitle').textContent = board ? board.name : 'No Board';
+    TaskDetail.hide();
     Task.renderBoard();
     Search.updateAssigneeFilter();
   }
@@ -132,6 +134,7 @@ const Board = (() => {
     renderList();
     const current = Store.getBoard(Store.getCurrentBoardId());
     document.getElementById('boardTitle').textContent = current ? current.name : 'No Board';
+    TaskDetail.hide();
     Task.renderBoard();
     Search.updateAssigneeFilter();
     UI.showToast('Board deleted', 'info');

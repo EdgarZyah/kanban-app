@@ -11,12 +11,15 @@ const DragDrop = (() => {
     const taskId = card.dataset.taskId;
     if (!taskId) return;
 
+    const rect = card.getBoundingClientRect();
     const state = {
       pointerId: e.pointerId,
       card: card,
       taskId: taskId,
       startX: e.clientX,
       startY: e.clientY,
+      clickOffsetX: e.clientX - rect.left,
+      clickOffsetY: e.clientY - rect.top,
       dragging: false,
       dead: false,
       ghost: null
@@ -62,7 +65,7 @@ const DragDrop = (() => {
       if (e.cancelable) e.preventDefault();
     }
 
-    positionGhost(state.ghost, e.clientX, e.clientY);
+    positionGhost(state.ghost, e.clientX, e.clientY, state);
     highlightDropZone(e.clientX, e.clientY);
   }
 
@@ -78,6 +81,14 @@ const DragDrop = (() => {
         const order = Search.isSortActive() ? undefined : computeOrder(list, e.clientY);
         Store.moveTask(state.taskId, list.dataset.column, order);
         Task.renderBoard();
+
+        const droppedCard = document.querySelector(`[data-task-id="${state.taskId}"]`);
+        if (droppedCard) {
+          droppedCard.classList.add('card-just-dropped');
+          droppedCard.addEventListener('animationend', () => {
+            droppedCard.classList.remove('card-just-dropped');
+          }, { once: true });
+        }
       }
     }
 
@@ -122,8 +133,8 @@ const DragDrop = (() => {
     return ghost;
   }
 
-  function positionGhost(ghost, x, y) {
-    ghost.style.transform = `translate(${x - ghost.offsetWidth / 2}px, ${y - 20}px)`;
+  function positionGhost(ghost, x, y, state) {
+    ghost.style.transform = `translate(${x - state.clickOffsetX}px, ${y - state.clickOffsetY}px)`;
   }
 
   function hitTestTaskList(x, y) {
@@ -172,18 +183,18 @@ const DragDrop = (() => {
       if (!indicator) {
         indicator = document.createElement('div');
         indicator.className = 'drop-indicator';
+        list.appendChild(indicator);
       }
 
       const cards = Array.from(list.querySelectorAll('.task-card:not(.dragging)'));
-      if (cards.length === 0) {
-        list.appendChild(indicator);
-      } else {
-        const after = getDragAfterElement(cards, y);
-        if (after === null) {
-          list.insertBefore(indicator, list.firstChild);
-        } else {
-          list.insertBefore(indicator, after);
+      const after = getDragAfterElement(cards, y);
+
+      if (after === null) {
+        if (list.lastChild !== indicator) {
+          list.appendChild(indicator);
         }
+      } else if (after.previousSibling !== indicator) {
+        list.insertBefore(indicator, after);
       }
 
       highlightedList = list;

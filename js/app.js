@@ -12,10 +12,15 @@ const App = (() => {
     setTimeout(() => setupMobileMenu(), 0);
     setTimeout(() => setupDroppableRefresh(), 0);
 
-    if (Store.getCurrentBoardId()) {
+    Board.renderList();
+
+    window.addEventListener('hashchange', handleHashChange);
+
+    if (window.location.hash.startsWith('#task/')) {
+      handleHashChange();
+    } else if (Store.getCurrentBoardId()) {
       Board.selectBoard(Store.getCurrentBoardId());
     } else {
-      Board.renderList();
       Board.showEmptyState(true);
       document.getElementById('boardTitle').textContent = 'Select a Board';
     }
@@ -23,6 +28,21 @@ const App = (() => {
     document.getElementById('filterAssignee').addEventListener('change', () => {
       setTimeout(() => setupDroppableRefresh(), 0);
     });
+  }
+
+  function handleHashChange() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#task/')) {
+      const taskId = hash.replace('#task/', '');
+      if (taskId) {
+        TaskDetail.show(taskId);
+      }
+    } else {
+      TaskDetail.hide();
+      if (Store.getCurrentBoardId()) {
+        Task.renderBoard();
+      }
+    }
   }
 
   function setupMobileMenu() {

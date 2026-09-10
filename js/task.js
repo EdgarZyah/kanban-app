@@ -55,6 +55,22 @@ const Task = (() => {
       html += `<div class="task-card-desc">${escapeHtml(task.description)}</div>`;
     }
 
+    const comments = task.comments && task.comments.length ? task.comments : [];
+    const lastComment = comments.length > 0
+      ? comments.slice().sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))[comments.length - 1]
+      : null;
+
+    if (lastComment) {
+      const lcDate = lastComment.created_at
+        ? new Date(lastComment.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : '';
+      html += `<div class="task-card-latest-comment">
+        <span class="latest-comment-icon">${UI.icon('icon-comment')}</span>
+        <span class="latest-comment-text">${escapeHtml(lastComment.text)}</span>
+        <span class="latest-comment-date">${lcDate}</span>
+      </div>`;
+    }
+
     html += '<div class="task-card-meta">';
     html += '<div class="badge-row">';
     html += `<span class="priority-badge ${task.priority}">${Store.PRIORITY_LABELS[task.priority] || task.priority}</span>`;
@@ -76,9 +92,8 @@ const Task = (() => {
       html += `<span class="${cls}">${UI.icon('icon-calendar')}${label}</span>`;
     }
 
-    const comments = task.comments && task.comments.length ? task.comments.length : 0;
-    if (comments > 0) {
-      html += `<span class="comment-count-badge">${UI.icon('icon-comment')} ${comments}</span>`;
+    if (comments.length > 0) {
+      html += `<span class="comment-count-badge">${UI.icon('icon-comment')} ${comments.length}</span>`;
     }
 
     html += '</div>';
@@ -97,19 +112,19 @@ const Task = (() => {
 
     card.addEventListener('click', (e) => {
       if (DragDrop.consumeClick()) return;
-      openEditModal(task.id);
+      window.location.hash = `#task/${task.id}`;
     });
 
     card.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        openEditModal(task.id);
+        window.location.hash = `#task/${task.id}`;
       }
     });
 
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      openEditModal(task.id);
+      window.location.hash = `#task/${task.id}`;
     });
 
     return card;
@@ -250,6 +265,11 @@ const Task = (() => {
     UI.closeModal('taskModal');
     renderBoard();
     Search.updateAssigneeFilter();
+
+    if (TaskDetail.isVisible()) {
+      const currentId = TaskDetail.getCurrentTaskId();
+      if (currentId) TaskDetail.show(currentId);
+    }
   }
 
   function deleteTask() {
@@ -262,6 +282,10 @@ const Task = (() => {
     renderBoard();
     Search.updateAssigneeFilter();
     UI.showToast('Task deleted', 'info');
+
+    if (TaskDetail.isVisible()) {
+      window.location.hash = '';
+    }
   }
 
   function closeTicket() {
@@ -274,6 +298,11 @@ const Task = (() => {
     renderBoard();
     Search.updateAssigneeFilter();
     UI.showToast('Ticket di-close', 'success');
+
+    if (TaskDetail.isVisible()) {
+      const currentId = TaskDetail.getCurrentTaskId();
+      if (currentId) TaskDetail.show(currentId);
+    }
   }
 
   function updateClosedCount() {
@@ -338,6 +367,11 @@ const Task = (() => {
     renderBoard();
     Search.updateAssigneeFilter();
     UI.showToast('Ticket dibuka kembali', 'success');
+
+    if (TaskDetail.isVisible()) {
+      const currentId = TaskDetail.getCurrentTaskId();
+      if (currentId) TaskDetail.show(currentId);
+    }
   }
 
   function openTicketModal() {
@@ -381,6 +415,11 @@ const Task = (() => {
     Task.renderBoard();
     Search.updateAssigneeFilter();
     UI.showToast('Ticket created in To Do', 'success');
+
+    if (TaskDetail.isVisible()) {
+      const currentId = TaskDetail.getCurrentTaskId();
+      if (currentId) TaskDetail.show(currentId);
+    }
   }
 
   function escapeHtml(text) {

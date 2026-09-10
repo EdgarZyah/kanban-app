@@ -1,35 +1,9 @@
 const ExcelManager = (() => {
   const BOARD_SHEET = 'boards';
-  const TASK_SHEET = 'tasks';
-
-  const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-</Types>`;
 
   const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-</Relationships>`;
-
-  const WORKBOOK_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <sheets>
-    <sheet name="boards" sheetId="1" r:id="rId1"/>
-    <sheet name="tasks" sheetId="2" r:id="rId2"/>
-  </sheets>
-</workbook>`;
-
-  const WORKBOOK_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
   const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -62,35 +36,88 @@ const ExcelManager = (() => {
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
-  function buildStyledWorkbook(state) {
-    const boardsXml = buildSheetXml(
-      'boards',
-      ['id', 'name', 'created_at'],
-      state.boards.map(b => [b.id, b.name, b.created_at]),
-      [30, 28, 24]
-    );
+  function buildContentTypes(sheetEntries) {
+    const overrides = sheetEntries.map((e, i) =>
+      `  <Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+    ).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+${overrides}
+</Types>`;
+  }
 
-    const tasksXml = buildSheetXml(
-      'tasks',
-      ['id', 'board_id', 'title', 'description', 'column', 'priority', 'assignee',
-        'assigned_by', 'due_date', 'comments', 'closed', 'closed_at', 'created_at', 'order'],
-      state.tasks.map(t => [
-        t.id, t.board_id, t.title, t.description || '', t.column, t.priority || 'medium',
+  function buildWorkbookXml(sheetEntries) {
+    const sheets = sheetEntries.map((e, i) =>
+      `    <sheet name="${escapeXml(e.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`
+    ).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+${sheets}
+  </sheets>
+</workbook>`;
+  }
+
+  function buildWorkbookRels(sheetEntries) {
+    const rels = sheetEntries.map((e, i) =>
+      `  <Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+    ).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${rels}
+  <Relationship Id="rId${sheetEntries.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+  }
+
+  function buildStyledWorkbook(state) {
+    const boardHeaders = ['id', 'name', 'created_at'];
+    const boardRows = state.boards.map(b => [b.id, b.name, b.created_at]);
+    const boardWidths = [30, 28, 24];
+
+    const taskHeaders = ['id', 'title', 'description', 'column', 'priority', 'assignee',
+      'assigned_by', 'due_date', 'comments', 'closed', 'closed_at', 'created_at', 'order'];
+    const taskWidths = [30, 28, 40, 14, 12, 16, 16, 14, 48, 10, 24, 24, 8];
+
+    const boardsXml = buildSheetXml('boards', boardHeaders, boardRows, boardWidths);
+
+    const sheetEntries = [{ name: 'boards', xml: boardsXml }];
+
+    state.boards.forEach(board => {
+      const boardTasks = state.tasks.filter(t => t.board_id === board.id);
+      const rows = boardTasks.map(t => [
+        t.id, t.title, t.description || '', t.column, t.priority || 'medium',
         t.assignee || '', t.assigned_by || '', t.due_date || '', serializeComments(t.comments),
         t.closed ? 1 : 0, t.closed_at || '', t.created_at || '', t.order
-      ]),
-      [30, 16, 28, 40, 14, 12, 16, 16, 14, 48, 10, 24, 24, 8]
-    );
+      ]);
+      const sheetName = sanitizeSheetName(board.name);
+      const taskXml = buildSheetXml(sheetName, taskHeaders, rows, taskWidths);
+      sheetEntries.push({ name: sheetName, xml: taskXml });
+    });
 
-    return zipStore([
-      { name: '[Content_Types].xml', data: CONTENT_TYPES },
+    const parts = [
+      { name: '[Content_Types].xml', data: buildContentTypes(sheetEntries) },
       { name: '_rels/.rels', data: ROOT_RELS },
-      { name: 'xl/workbook.xml', data: WORKBOOK_XML },
-      { name: 'xl/_rels/workbook.xml.rels', data: WORKBOOK_RELS },
-      { name: 'xl/styles.xml', data: STYLES_XML },
-      { name: 'xl/worksheets/sheet1.xml', data: boardsXml },
-      { name: 'xl/worksheets/sheet2.xml', data: tasksXml }
-    ]);
+      { name: 'xl/workbook.xml', data: buildWorkbookXml(sheetEntries) },
+      { name: 'xl/_rels/workbook.xml.rels', data: buildWorkbookRels(sheetEntries) },
+      { name: 'xl/styles.xml', data: STYLES_XML }
+    ];
+
+    sheetEntries.forEach((e, i) => {
+      parts.push({ name: `xl/worksheets/sheet${i + 1}.xml`, data: e.xml });
+    });
+
+    return zipStore(parts);
+  }
+
+  function sanitizeSheetName(name) {
+    let safe = name.replace(/[\\\/\?\*\[\]:]/g, '_').trim();
+    if (safe.length > 31) safe = safe.substring(0, 31);
+    if (!safe) safe = 'Board';
+    return safe;
   }
 
   function buildSheetXml(name, headers, rows, widths) {
@@ -272,12 +299,28 @@ const ExcelManager = (() => {
           const data = new Uint8Array(e.target.result);
           const wb = XLSX.read(data, { type: 'array' });
 
-          if (!wb.Sheets[BOARD_SHEET] || !wb.Sheets[TASK_SHEET]) {
-            throw new Error('Invalid file format. Missing required sheets.');
+          if (!wb.Sheets[BOARD_SHEET]) {
+            throw new Error('Invalid file format. Missing "boards" sheet.');
           }
 
           const boards = XLSX.utils.sheet_to_json(wb.Sheets[BOARD_SHEET]);
-          const tasks = XLSX.utils.sheet_to_json(wb.Sheets[TASK_SHEET]);
+
+          let allTasks = [];
+
+          if (wb.Sheets['tasks']) {
+            allTasks = XLSX.utils.sheet_to_json(wb.Sheets['tasks']);
+          } else {
+            boards.forEach(b => {
+              const sheetName = b.name;
+              if (wb.Sheets[sheetName]) {
+                const boardTasks = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                boardTasks.forEach(t => {
+                  if (!t.board_id) t.board_id = b.id;
+                  allTasks.push(t);
+                });
+              }
+            });
+          }
 
           const state = {
             boards: boards.map(b => ({
@@ -285,7 +328,7 @@ const ExcelManager = (() => {
               name: String(b.name || 'Untitled'),
               created_at: b.created_at || new Date().toISOString()
             })),
-            tasks: tasks.map(t => ({
+            tasks: allTasks.map(t => ({
               id: t.id || Store.generateId(),
               board_id: t.board_id || (boards[0] ? boards[0].id : null),
               title: String(t.title || ''),
@@ -403,6 +446,7 @@ const ExcelManager = (() => {
         .then(() => {
           fileInput.value = '';
           UI.showToast('Data imported successfully', 'success');
+          TaskDetail.hide();
           Board.renderList();
           Task.renderBoard();
           Search.updateAssigneeFilter();
