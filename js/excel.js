@@ -78,9 +78,9 @@ ${rels}
     const boardRows = state.boards.map(b => [b.id, b.name, b.created_at]);
     const boardWidths = [30, 28, 24];
 
-    const taskHeaders = ['id', 'title', 'description', 'column', 'priority', 'assignee',
-      'assigned_by', 'due_date', 'comments', 'closed', 'closed_at', 'created_at', 'order'];
-    const taskWidths = [30, 28, 40, 14, 12, 16, 16, 14, 48, 10, 24, 24, 8];
+    const taskHeaders = ['id', 'title', 'description', 'status', 'priority', 'due_date',
+      'sme', 'sme_lead', 'pm', 'progress_log', 'closed', 'closed_at', 'created_at', 'order'];
+    const taskWidths = [30, 28, 40, 14, 12, 14, 16, 16, 16, 48, 10, 24, 24, 8];
 
     const boardsXml = buildSheetXml('boards', boardHeaders, boardRows, boardWidths);
 
@@ -89,8 +89,9 @@ ${rels}
     state.boards.forEach(board => {
       const boardTasks = state.tasks.filter(t => t.board_id === board.id);
       const rows = boardTasks.map(t => [
-        t.id, t.title, t.description || '', t.column, t.priority || 'medium',
-        t.assignee || '', t.assigned_by || '', t.due_date || '', serializeComments(t.comments),
+        t.id, t.title, t.description || '', Store.COLUMN_LABELS[t.column] || t.column,
+        t.priority || 'medium', t.due_date || '', t.assignee || '', t.sme_lead || '', t.assigned_by || '',
+        serializeComments(t.comments),
         t.closed ? 1 : 0, t.closed_at || '', t.created_at || '', t.order
       ]);
       const sheetName = sanitizeSheetName(board.name);
@@ -333,12 +334,13 @@ ${rels}
               board_id: t.board_id || (boards[0] ? boards[0].id : null),
               title: String(t.title || ''),
               description: String(t.description || ''),
-              column: t.column || 'todo',
+              column: resolveColumn(t.status !== undefined ? t.status : t.column),
               priority: t.priority || 'medium',
-              assignee: String(t.assignee || ''),
-              assigned_by: String(t.assigned_by || ''),
+              assignee: String(pickValue(t.sme, t.pic, t.assignee)),
+              sme_lead: String(pickValue(t.sme_lead, t.smeLead)),
+              assigned_by: String(pickValue(t.pm, t.assigned_by)),
               due_date: formatExcelDate(t.due_date),
-              comments: parseComments(t.comments),
+              comments: parseComments(pickValue(t.progress_log, t.comments)),
               closed: t.closed === true || t.closed === 1 || String(t.closed || '') === 'true' || String(t.closed || '') === '1',
               closed_at: t.closed_at || null,
               created_at: t.created_at || new Date().toISOString(),
@@ -359,6 +361,28 @@ ${rels}
     });
   }
 
+  const COLUMN_ALIASES = {
+    'to do': 'todo',
+    'todo': 'todo',
+    'in progress': 'inprogress',
+    'inprogress': 'inprogress',
+    'review': 'review',
+    'done': 'done'
+  };
+
+  function resolveColumn(value) {
+    if (value === undefined || value === null || value === '') return 'todo';
+    return COLUMN_ALIASES[String(value).trim().toLowerCase()] || 'todo';
+  }
+
+  function pickValue() {
+    for (let i = 0; i < arguments.length; i++) {
+      const v = arguments[i];
+      if (v !== undefined && v !== null) return v;
+    }
+    return '';
+  }
+
   function formatExcelDate(value) {
     if (!value) return '';
     if (typeof value === 'number') {
@@ -375,26 +399,36 @@ ${rels}
 
   function serializeComments(comments) {
     if (!Array.isArray(comments) || comments.length === 0) return '';
-    return comments
-      .map(c => {
-        let time = '';
-        const d = c.created_at ? new Date(c.created_at) : null;
-        if (d && !isNaN(d)) {
-          const dateStr =
-            d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-          const timeStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-          time = `[${dateStr} ${timeStr}] `;
-        }
-        const text = String(c.text || '').replace(/\r?\n/g, ' ');
-        return time + text;
-      })
-      .join('\n');
+    const lines = [];
+    comments.forEach(c => {
+      let time = '';
+      const d = c.created_at ? new Date(c.created_at) : null;
+      if (d && !isNaN(d)) {
+        const dateStr =
+          d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const timeStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        time = `[${dateStr} ${timeStr}] `;
+      }
+      const doneFlag = c.done ? '[done] ' : '';
+      const text = String(c.text || '').replace(/\r?\n/g, ' ');
+      lines.push(time + doneFlag + text);
+
+      if (Array.isArray(c.replies)) {
+        c.replies.forEach(r => {
+          const rText = String(r.text || '').replace(/\r?\n/g, ' ');
+          lines.push(time + (r.done ? '[done] ' : '') + '\u21B3 ' + rText);
+        });
+      }
+    });
+    return lines.join('\n');
   }
 
   function parseComments(value) {
     if (!value) return [];
     const lines = String(value).split(/\r?\n/).filter(l => l.trim());
-    return lines.map(line => {
+    const comments = [];
+
+    lines.forEach(line => {
       const m = line.match(/^\[([^\]]+)\]\s?(.*)$/);
       let created_at = null;
       let text = line;
@@ -402,8 +436,38 @@ ${rels}
         created_at = parseLogDate(m[1]);
         text = m[2];
       }
-      return { text: text.trim(), created_at: created_at || new Date().toISOString() };
+      text = text.trim();
+
+      let done = false;
+      if (text.startsWith('[done] ')) {
+        done = true;
+        text = text.slice(7).trim();
+      }
+
+      if (text.startsWith('\u21B3 ')) {
+        const replyText = text.slice(2).trim();
+        if (comments.length > 0) {
+          const parent = comments[comments.length - 1];
+          parent.replies.push({
+            id: Store.generateId(),
+            text: replyText,
+            done: done,
+            created_at: created_at || new Date().toISOString()
+          });
+          return;
+        }
+      }
+
+      comments.push({
+        id: Store.generateId(),
+        text: text,
+        done: done,
+        replies: [],
+        created_at: created_at || new Date().toISOString()
+      });
     });
+
+    return comments;
   }
 
   function parseLogDate(str) {

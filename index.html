@@ -21,6 +21,11 @@
     <symbol id="icon-user" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></symbol>
     <symbol id="icon-comment" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/></symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24"><path d="M4 5h6v6H4V5zm0 8h6v6H4v-6zm8-8h6v6h-6V5zm0 8h6v6h-6v-6z"/></symbol>
+    <symbol id="icon-list" viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></symbol>
     <symbol id="icon-warning" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
     <symbol id="icon-clipboard" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></symbol>
     <symbol id="icon-archive" viewBox="0 0 24 24"><path d="M18.71 3H5.29L3 5.79V21h18V5.79L18.71 3zM5.24 5h13.52l1 1H4.24l1-1zM19 20H5v-4h3l1.5 2h5L16 16h3v4z"/></symbol>
@@ -67,6 +72,10 @@
             </span>
           </button>
           <button class="btn btn-primary" id="btnOpenTicket" title="Quick create a ticket">+ Open Ticket</button>
+          <button class="btn btn-outline" id="btnBenchmark" title="Lihat persentase task selesai per PM">
+            <svg class="icon" aria-hidden="true"><use href="#icon-chart"></use></svg>
+            Benchmark
+          </button>
           <button class="btn btn-outline" id="btnClosedTickets" title="Lihat ticket yang sudah ditutup">
             <svg class="icon" aria-hidden="true"><use href="#icon-archive"></use></svg>
             Closed <span class="closed-count" id="closedCount">0</span>
@@ -74,40 +83,57 @@
         </div>
       </div>
       <div class="topbar-row topbar-row-2">
-        <div class="search-box">
-          <input type="text" id="searchInput" placeholder="Search tasks...">
+        <div class="filter-line">
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search tasks...">
+          </div>
+          <div class="date-range">
+            <input type="date" id="filterDateFrom" aria-label="Dari tanggal">
+            <span class="date-range-sep">–</span>
+            <input type="date" id="filterDateTo" aria-label="Sampai tanggal">
+          </div>
+          <div class="view-toggle" role="group" aria-label="Mode tampilan task">
+            <button type="button" id="btnViewCard" class="view-toggle-btn" title="Tampilan card" aria-pressed="true">
+              <svg class="icon" aria-hidden="true"><use href="#icon-grid"></use></svg>
+              <span>Card</span>
+            </button>
+            <button type="button" id="btnViewList" class="view-toggle-btn" title="Tampilan list" aria-pressed="false">
+              <svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg>
+              <span>List</span>
+            </button>
+          </div>
         </div>
-        <div class="filter-group">
-          <select id="filterPriority">
-            <option value="">All Priority</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-          <select id="filterDueDate">
-            <option value="">All Due</option>
-            <option value="overdue">Overdue</option>
-            <option value="today">Due Today</option>
-            <option value="soon">Next 3 Days</option>
-            <option value="nodate">No Due Date</option>
-          </select>
-          <select id="filterAssignee">
-            <option value="">All Assignees</option>
-          </select>
-          <select id="sortTasks">
-            <option value="order">Sort: Manual</option>
-            <option value="priority">Sort: Priority</option>
-            <option value="due_asc">Sort: Due Date ↑</option>
-            <option value="due_desc">Sort: Due Date ↓</option>
-            <option value="title_asc">Sort: Title A–Z</option>
-            <option value="created_desc">Sort: Newest</option>
-          </select>
-        </div>
-        <div class="date-range">
-          <input type="date" id="filterDateFrom" aria-label="Dari tanggal">
-          <span class="date-range-sep">–</span>
-          <input type="date" id="filterDateTo" aria-label="Sampai tanggal">
+        <div class="filter-line">
+          <div class="filter-group">
+            <select id="filterPriority">
+              <option value="">All Priority</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+            <select id="filterDueDate">
+              <option value="">All Due</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due Today</option>
+              <option value="soon">Next 3 Days</option>
+              <option value="nodate">No Due Date</option>
+            </select>
+            <select id="filterAssignee">
+              <option value="">All SME</option>
+            </select>
+            <select id="filterAssignedBy">
+              <option value="">All PM</option>
+            </select>
+            <select id="sortTasks">
+              <option value="order">Sort: Manual</option>
+              <option value="priority">Sort: Priority</option>
+              <option value="due_asc">Sort: Due Date ↑</option>
+              <option value="due_desc">Sort: Due Date ↓</option>
+              <option value="title_asc">Sort: Title A–Z</option>
+              <option value="created_desc">Sort: Newest</option>
+            </select>
+          </div>
         </div>
       </div>
     </header>
@@ -158,6 +184,21 @@
           </div>
           <div class="task-list" data-column="done"></div>
         </div>
+      </div>
+
+      <div class="list-container" id="listContainer" style="display:none;">
+        <div class="list-header">
+          <span class="list-col list-col-title">Task</span>
+          <span class="list-col list-col-status">Status</span>
+          <span class="list-col list-col-priority">Priority</span>
+          <span class="list-col list-col-due">Due Date</span>
+          <span class="list-col list-col-sme">SME</span>
+          <span class="list-col list-col-sme-lead">SME Lead</span>
+          <span class="list-col list-col-pm">PM</span>
+          <span class="list-col list-col-logs">Logs</span>
+          <span class="list-col list-col-created">Created</span>
+        </div>
+        <div class="list-body" id="listBody"></div>
       </div>
     </div>
 
@@ -219,12 +260,15 @@
           </div>
         </div>
 
-        <label>Assignee</label>
+        <label>SME</label>
         <input type="text" id="taskAssignee" placeholder="e.g. John Doe" maxlength="50">
+
+        <label>SME Lead</label>
+        <input type="text" id="taskSmeLead" placeholder="e.g. Lead Name" maxlength="50">
 
         <div class="form-row">
           <div class="form-group">
-            <label>Assigned By</label>
+            <label>PM</label>
             <input type="text" id="taskAssignedBy" placeholder="Siapa yang menugaskan" maxlength="50">
           </div>
         </div>
@@ -283,10 +327,13 @@
           </div>
         </div>
 
-        <label>Assignee</label>
+        <label>SME</label>
         <input type="text" id="ticketAssignee" placeholder="e.g. John Doe" maxlength="50">
 
-        <label>Assigned By</label>
+        <label>SME Lead</label>
+        <input type="text" id="ticketSmeLead" placeholder="e.g. Lead Name" maxlength="50">
+
+        <label>PM</label>
         <input type="text" id="ticketAssignedBy" placeholder="Siapa yang menugaskan" maxlength="50">
       </div>
       <div class="modal-footer">
@@ -311,9 +358,30 @@
         <div class="closed-list" id="closedList"></div>
       </div>
       <div class="modal-footer">
-        <div class="ticket-info">Ticket tertutup tidak tampil di kolom kanban.</div>
+        <div class="ticket-info">Closed ticket pada board aktif; tidak tampil di kolom kanban.</div>
         <div class="spacer"></div>
         <button class="btn btn-outline" data-close="closedModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Benchmark -->
+  <div class="modal-overlay" id="benchmarkModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="benchmarkModalTitle">Benchmark PM</h3>
+        <button class="btn-close" data-close="benchmarkModal" aria-label="Tutup dialog">
+          <svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="benchmark-board-name" id="benchmarkBoardName"></div>
+        <div class="benchmark-list" id="benchmarkList"></div>
+      </div>
+      <div class="modal-footer">
+        <div class="ticket-info">Persentase task selesai (Done/Closed) dari total task setiap PM.</div>
+        <div class="spacer"></div>
+        <button class="btn btn-outline" data-close="benchmarkModal">Close</button>
       </div>
     </div>
   </div>
@@ -330,6 +398,7 @@
   <script src="js/dragdrop.js"></script>
   <script src="js/search.js"></script>
   <script src="js/taskdetail.js"></script>
+  <script src="js/benchmark.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

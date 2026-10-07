@@ -2,6 +2,7 @@ const Search = (() => {
   let query = '';
   let priorityFilter = '';
   let assigneeFilter = '';
+  let assignedByFilter = '';
   let dueDateFilter = '';
   let dateFrom = '';
   let dateTo = '';
@@ -12,12 +13,15 @@ const Search = (() => {
       const q = filters.query.toLowerCase();
       const inTitle = task.title.toLowerCase().includes(q);
       const inDesc = (task.description || '').toLowerCase().includes(q);
-      const inAssignee = (task.assignee || '').toLowerCase().includes(q);
-      if (!inTitle && !inDesc && !inAssignee) return false;
-    }
+        const inAssignee = (task.assignee || '').toLowerCase().includes(q);
+        const inSmeLead = (task.sme_lead || '').toLowerCase().includes(q);
+        const inAssignedBy = (task.assigned_by || '').toLowerCase().includes(q);
+        if (!inTitle && !inDesc && !inAssignee && !inSmeLead && !inAssignedBy) return false;
+      }
 
-    if (filters.priority && task.priority !== filters.priority) return false;
-    if (filters.assignee && (task.assignee || '') !== filters.assignee) return false;
+      if (filters.priority && task.priority !== filters.priority) return false;
+      if (filters.assignee && (task.assignee || '') !== filters.assignee) return false;
+      if (filters.assignedBy && (task.assigned_by || '') !== filters.assignedBy) return false;
 
     if (filters.dueDate) {
       const due = task.due_date || '';
@@ -81,6 +85,7 @@ const Search = (() => {
       query: query,
       priority: priorityFilter,
       assignee: assigneeFilter,
+      assignedBy: assignedByFilter,
       dueDate: dueDateFilter,
       dateFrom: dateFrom,
       dateTo: dateTo
@@ -95,33 +100,59 @@ const Search = (() => {
     return sortKey !== 'order';
   }
 
-  function updateAssigneeFilter() {
-    const select = document.getElementById('filterAssignee');
-    const currentValue = assigneeFilter;
-    const assignees = Store.getAssignees().sort();
+  function rebuildSelect(id, currentValue, values, allLabel, onChange) {
+    const old = document.getElementById(id);
+    if (!old) return;
+
+    let value = currentValue;
+    if (value && values.indexOf(value) === -1) {
+      value = '';
+      onChange('');
+      Task.renderBoard();
+    }
 
     const newSelect = document.createElement('select');
-    newSelect.id = 'filterAssignee';
+    newSelect.id = id;
 
     const allOption = document.createElement('option');
     allOption.value = '';
-    allOption.textContent = 'All Assignees';
+    allOption.textContent = allLabel;
     newSelect.appendChild(allOption);
 
-    assignees.forEach(a => {
+    values.forEach(v => {
       const option = document.createElement('option');
-      option.value = a;
-      option.textContent = a;
+      option.value = v;
+      option.textContent = v;
       newSelect.appendChild(option);
     });
 
-    newSelect.value = currentValue;
-    select.replaceWith(newSelect);
+    newSelect.value = value;
+    old.replaceWith(newSelect);
 
     newSelect.addEventListener('change', () => {
-      assigneeFilter = newSelect.value;
+      onChange(newSelect.value);
       Task.renderBoard();
     });
+  }
+
+  function updateAssigneeFilter() {
+    const boardId = Store.getCurrentBoardId();
+
+    rebuildSelect(
+      'filterAssignee',
+      assigneeFilter,
+      Store.getAssignees(boardId).sort((a, b) => a.localeCompare(b, 'id')),
+      'All SME',
+      v => { assigneeFilter = v; }
+    );
+
+    rebuildSelect(
+      'filterAssignedBy',
+      assignedByFilter,
+      Store.getAssignedBy(boardId).sort((a, b) => a.localeCompare(b, 'id')),
+      'All PM',
+      v => { assignedByFilter = v; }
+    );
   }
 
   function init() {

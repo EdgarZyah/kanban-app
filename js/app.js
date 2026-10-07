@@ -7,14 +7,31 @@ const App = (() => {
     Task.init();
     Search.init();
     ExcelManager.init();
+    Benchmark.init();
     DragDrop.setupDrop();
 
     setTimeout(() => setupMobileMenu(), 0);
     setTimeout(() => setupDroppableRefresh(), 0);
+    setupBackKey();
 
     Board.renderList();
 
     window.addEventListener('hashchange', handleHashChange);
+
+    let lastDayKey = new Date().toDateString();
+    setInterval(() => {
+      const dayKey = new Date().toDateString();
+      if (dayKey !== lastDayKey) {
+        lastDayKey = dayKey;
+        Store.applyDeadlinePriorities();
+        if (window.location.hash.startsWith('#task/')) {
+          const taskId = window.location.hash.replace('#task/', '');
+          if (taskId && TaskDetail.isVisible()) TaskDetail.show(taskId);
+        } else if (Store.getCurrentBoardId()) {
+          Task.renderBoard();
+        }
+      }
+    }, 60000);
 
     if (window.location.hash.startsWith('#task/')) {
       handleHashChange();
@@ -26,6 +43,10 @@ const App = (() => {
     }
 
     document.getElementById('filterAssignee').addEventListener('change', () => {
+      setTimeout(() => setupDroppableRefresh(), 0);
+    });
+
+    document.getElementById('filterAssignedBy').addEventListener('change', () => {
       setTimeout(() => setupDroppableRefresh(), 0);
     });
   }
@@ -43,6 +64,49 @@ const App = (() => {
         Task.renderBoard();
       }
     }
+  }
+
+  function setupBackKey() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (goBack()) e.preventDefault();
+    });
+  }
+
+  function goBack() {
+    const replyForm = document.querySelector('.comment-reply-form:not([hidden]), .detail-comment-reply-form:not([hidden])');
+    if (replyForm) {
+      replyForm.hidden = true;
+      return true;
+    }
+
+    const openModals = document.querySelectorAll('.modal-overlay.show');
+    if (openModals.length > 0) {
+      const top = openModals[openModals.length - 1];
+      if (top.id) {
+        UI.closeModal(top.id);
+      } else {
+        top.classList.remove('show');
+      }
+      return true;
+    }
+
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      const mobileMenu = document.getElementById('mobileMenu');
+      if (mobileMenu) mobileMenu.setAttribute('aria-expanded', 'false');
+      return true;
+    }
+
+    if (window.location.hash.startsWith('#task/')) {
+      window.location.hash = '';
+      TaskDetail.hide();
+      if (Store.getCurrentBoardId()) Task.renderBoard();
+      return true;
+    }
+
+    return false;
   }
 
   function setupMobileMenu() {

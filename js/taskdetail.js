@@ -32,7 +32,21 @@ const TaskDetail = (() => {
   function render(task) {
     const board = Store.getBoard(task.board_id);
     const boardName = board ? board.name : '';
-    const statusLabel = Store.COLUMN_LABELS[task.column] || task.column;
+    const alertLevel = Store.getTaskAlertLevel(task);
+    const statusLabel = alertLevel === 'overdue' ? 'Overdue'
+      : alertLevel === 'critical' ? '< 3 Hari'
+      : alertLevel === 'week' ? '< 1 Minggu'
+      : alertLevel === 'urgent' ? '< 2 Minggu'
+      : alertLevel === 'alert' ? '< 1 Bulan'
+      : alertLevel === 'month' ? '< 3 Bulan'
+      : (Store.COLUMN_LABELS[task.column] || task.column);
+    const statusBadgeClass = alertLevel === 'overdue' ? 'detail-badge-overdue'
+      : alertLevel === 'critical' ? 'detail-badge-critical'
+      : alertLevel === 'week' ? 'detail-badge-week'
+      : alertLevel === 'urgent' ? 'detail-badge-urgent'
+      : alertLevel === 'alert' ? 'detail-badge-alert'
+      : alertLevel === 'month' ? 'detail-badge-month'
+      : 'detail-badge-status';
     const priorityLabel = Store.PRIORITY_LABELS[task.priority] || task.priority;
     const dueDateStatus = UI.getDueDateStatus(task.due_date);
 
@@ -56,9 +70,14 @@ const TaskDetail = (() => {
       assigneeHtml = `<span class="detail-assignee">${UI.icon('icon-user')} ${escapeHtml(task.assignee)}</span>`;
     }
 
+    let smeLeadHtml = '';
+    if (task.sme_lead) {
+      smeLeadHtml = `<div class="detail-row"><span class="detail-label">SME Lead</span><span>${escapeHtml(task.sme_lead)}</span></div>`;
+    }
+
     let assignedByHtml = '';
     if (task.assigned_by) {
-      assignedByHtml = `<div class="detail-row"><span class="detail-label">Assigned By</span><span>${escapeHtml(task.assigned_by)}</span></div>`;
+      assignedByHtml = `<div class="detail-row"><span class="detail-label">PM</span><span>${escapeHtml(task.assigned_by)}</span></div>`;
     }
 
     const closedBadge = task.closed
@@ -75,12 +94,58 @@ const TaskDetail = (() => {
         const dateStr = c.created_at
           ? new Date(c.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
           : '';
+        const replies = Array.isArray(c.replies) ? c.replies : [];
+        const replyFormHtml = !task.closed ? `
+          <div class="detail-comment-reply-form" hidden>
+            <textarea rows="1" placeholder="Tulis detail log..." maxlength="300"></textarea>
+            <div class="detail-comment-reply-actions">
+              <button type="button" class="btn btn-outline detail-reply-cancel">Cancel</button>
+              <button type="button" class="btn btn-primary detail-reply-save" data-comment-id="${escapeHtml(c.id || '')}">Add Detail</button>
+            </div>
+          </div>` : '';
+
+        const repliesHtml = replies.map(r => {
+          const rDate = r.created_at
+            ? new Date(r.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+            : '';
+          return `
+            <div class="detail-comment-reply${r.done ? ' is-done' : ''}" data-reply-id="${escapeHtml(r.id || '')}">
+              <div class="detail-comment-reply-meta">
+                <span>${rDate}</span>
+                <span class="detail-comment-reply-actions">
+                  <button type="button" class="detail-comment-reply-done${r.done ? ' is-done' : ''}" data-comment-id="${escapeHtml(c.id || '')}" data-reply-id="${escapeHtml(r.id || '')}" title="${r.done ? 'Tandai belum selesai' : 'Tandai sudah selesai'}" aria-label="Tandai sub log sudah selesai">
+                    ${UI.icon('icon-check')}
+                  </button>
+                  ${!task.closed ? `
+                    <button type="button" class="detail-comment-reply-delete" data-comment-id="${escapeHtml(c.id || '')}" data-reply-id="${escapeHtml(r.id || '')}" title="Hapus sub log" aria-label="Hapus sub log">
+                      ${UI.icon('icon-trash')}
+                    </button>` : ''}
+                </span>
+              </div>
+              <div class="detail-comment-reply-text${r.done ? ' is-done' : ''}">${escapeHtml(r.text)}</div>
+            </div>`;
+        }).join('');
+
         return `
-          <div class="detail-comment">
+          <div class="detail-comment${c.done ? ' is-done' : ''}">
             <div class="detail-comment-header">
               <span class="detail-comment-date">${dateStr}</span>
+              <span class="detail-comment-actions">
+                <button type="button" class="detail-comment-done ${c.done ? 'is-done' : ''}" data-comment-id="${escapeHtml(c.id || '')}" title="${c.done ? 'Tandai belum selesai' : 'Tandai sudah selesai'}" aria-label="Tandai sudah selesai">
+                  ${UI.icon('icon-check')}
+                </button>
+                ${!task.closed ? `
+                  <button type="button" class="detail-comment-reply-btn" data-comment-id="${escapeHtml(c.id || '')}" title="Tambah sub log" aria-label="Tambah sub log">
+                    ${UI.icon('icon-plus')}
+                  </button>` : ''}
+                <button type="button" class="detail-comment-delete" data-comment-id="${escapeHtml(c.id || '')}" title="Hapus progress log" aria-label="Hapus progress log">
+                  ${UI.icon('icon-trash')}
+                </button>
+              </span>
             </div>
-            <div class="detail-comment-body">${escapeHtml(c.text)}</div>
+            <div class="detail-comment-body${c.done ? ' is-done' : ''}">${escapeHtml(c.text)}</div>
+            ${replies.length > 0 ? `<div class="detail-comment-replies">${repliesHtml}</div>` : ''}
+            ${replyFormHtml}
           </div>`;
       }).join('');
     }
@@ -116,13 +181,14 @@ const TaskDetail = (() => {
               <h1 class="detail-title">${escapeHtml(task.title)}</h1>
               <div class="detail-header-badges">
                 <span class="detail-badge detail-badge-priority detail-badge-${task.priority}">${priorityLabel}</span>
-                <span class="detail-badge detail-badge-status">${UI.icon('icon-clipboard')} ${statusLabel}</span>
+                <span class="detail-badge ${statusBadgeClass}">${UI.icon(alertLevel ? 'icon-warning' : 'icon-clipboard')} ${statusLabel}</span>
                 ${closedBadge}
               </div>
             </div>
 
             <div class="detail-meta-bar">
-              <div class="detail-row"><span class="detail-label">Assignee</span>${assigneeHtml}</div>
+              <div class="detail-row"><span class="detail-label">SME</span>${assigneeHtml}</div>
+              ${smeLeadHtml}
               ${assignedByHtml}
               <div class="detail-row"><span class="detail-label">Due Date</span>${dueDateHtml}</div>
               <div class="detail-row"><span class="detail-label">Created</span><span class="detail-muted">${UI.formatDateTime(task.created_at)}</span></div>
@@ -216,20 +282,117 @@ const TaskDetail = (() => {
 
     const commentInput = document.getElementById('detailCommentInput');
     const addCommentBtn = document.getElementById('detailBtnAddComment');
+    const commentsList = document.querySelector('#taskDetailView .detail-comments-list');
+
+    if (commentsList) {
+      commentsList.addEventListener('click', (e) => {
+        const doneBtn = e.target.closest('.detail-comment-done');
+        if (doneBtn) {
+          const commentId = doneBtn.getAttribute('data-comment-id');
+          if (!commentId) return;
+          const comment = Store.toggleCommentDone(task.id, commentId);
+          if (comment) {
+            UI.showToast(comment.done ? 'Log ditandai selesai' : 'Log ditandai belum selesai', 'success');
+          }
+          show(task.id);
+          Task.renderBoard();
+          return;
+        }
+
+        const replyBtn = e.target.closest('.detail-comment-reply-btn');
+        if (replyBtn) {
+          const wrapper = replyBtn.closest('.detail-comment');
+          const form = wrapper ? wrapper.querySelector('.detail-comment-reply-form') : null;
+          if (form) {
+            form.hidden = !form.hidden;
+            if (!form.hidden) form.querySelector('textarea').focus();
+          }
+          return;
+        }
+
+        const cancelBtn = e.target.closest('.detail-reply-cancel');
+        if (cancelBtn) {
+          const form = cancelBtn.closest('.detail-comment-reply-form');
+          if (form) {
+            form.hidden = true;
+            form.querySelector('textarea').value = '';
+          }
+          return;
+        }
+
+        const saveBtn = e.target.closest('.detail-reply-save');
+        if (saveBtn) {
+          const commentId = saveBtn.getAttribute('data-comment-id');
+          const form = saveBtn.closest('.detail-comment-reply-form');
+          const input = form ? form.querySelector('textarea') : null;
+          if (!commentId || !input) return;
+          const text = input.value.trim();
+          if (!text) return;
+          if (!Store.addReply(task.id, commentId, text)) return;
+          UI.showToast('Sub log ditambahkan', 'success');
+          show(task.id);
+          Task.renderBoard();
+          return;
+        }
+
+        const replyDoneBtn = e.target.closest('.detail-comment-reply-done');
+        if (replyDoneBtn) {
+          const commentId = replyDoneBtn.getAttribute('data-comment-id');
+          const replyId = replyDoneBtn.getAttribute('data-reply-id');
+          if (!commentId || !replyId) return;
+          const reply = Store.toggleReplyDone(task.id, commentId, replyId);
+          if (reply) {
+            UI.showToast(reply.done ? 'Sub log ditandai selesai' : 'Sub log ditandai belum selesai', 'success');
+          }
+          show(task.id);
+          Task.renderBoard();
+          return;
+        }
+
+        const replyDelBtn = e.target.closest('.detail-comment-reply-delete');
+        if (replyDelBtn) {
+          const commentId = replyDelBtn.getAttribute('data-comment-id');
+          const replyId = replyDelBtn.getAttribute('data-reply-id');
+          if (!commentId || !replyId) return;
+          if (!UI.confirmDialog('Hapus sub log ini? Tindakan ini tidak dapat dibatalkan.')) return;
+          if (Store.deleteReply(task.id, commentId, replyId)) {
+            UI.showToast('Sub log dihapus', 'info');
+          }
+          show(task.id);
+          Task.renderBoard();
+          return;
+        }
+
+        const btn = e.target.closest('.detail-comment-delete');
+        if (!btn) return;
+        const commentId = btn.getAttribute('data-comment-id');
+        if (!commentId) return;
+        if (!UI.confirmDialog('Hapus progress log ini? Tindakan ini tidak dapat dibatalkan.')) return;
+        if (Store.deleteComment(task.id, commentId)) {
+          UI.showToast('Progress log deleted', 'info');
+        } else {
+          UI.showToast('Progress log not found', 'error');
+        }
+        show(task.id);
+        Task.renderBoard();
+      });
+
+      commentsList.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        const form = e.target.closest('.detail-comment-reply-form');
+        if (!form) return;
+        e.preventDefault();
+        const saveBtn = form.querySelector('.detail-reply-save');
+        if (saveBtn) saveBtn.click();
+      });
+    }
 
     if (addCommentBtn && commentInput) {
       const addComment = () => {
         const text = commentInput.value.trim();
         if (!text) return;
 
-        const t = Store.getTasks().find(tk => tk.id === task.id);
-        if (!t) return;
-        if (!Array.isArray(t.comments)) t.comments = [];
-        t.comments.push({
-          text: text,
-          created_at: new Date().toISOString()
-        });
-        Store.save();
+        if (!Store.addComment(task.id, text)) return;
 
         commentInput.value = '';
         show(task.id);
@@ -256,9 +419,10 @@ const TaskDetail = (() => {
     document.getElementById('taskColumn').value = task.column;
     document.getElementById('taskTitle').value = task.title;
     document.getElementById('taskDesc').value = task.description || '';
-    document.getElementById('taskPriority').value = task.priority || 'medium';
+    document.getElementById('taskPriority').value = task.base_priority || task.priority || 'medium';
     document.getElementById('taskDueDate').value = task.due_date || '';
     document.getElementById('taskAssignee').value = task.assignee || '';
+    document.getElementById('taskSmeLead').value = task.sme_lead || '';
     document.getElementById('taskAssignedBy').value = task.assigned_by || '';
     document.getElementById('btnDeleteTask').style.display = 'inline-block';
     document.getElementById('btnCloseTicket').style.display = task.closed ? 'none' : 'inline-block';

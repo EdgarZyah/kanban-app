@@ -74,6 +74,7 @@ const Board = (() => {
     renderList();
     const board = Store.getBoard(id);
     document.getElementById('boardTitle').textContent = board ? board.name : 'No Board';
+    window.location.hash = '';
     TaskDetail.hide();
     Task.renderBoard();
     Search.updateAssigneeFilter();
